@@ -116,7 +116,7 @@ while True:
                     client_info['username'] = username
                     client_info['state'] = 'awaiting_password'
                 else:
-                    error_message = "Invalid input.\n"
+                    error_message = "Failed to login\n"
                     sock.sendall(error_message.encode())
                     inputs.remove(sock)
                     del clients[sock]

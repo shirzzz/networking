@@ -47,167 +47,201 @@ def send_all(sock: socket.socket, message: str):
     except Exception as e:
         print(f"Error sending message: {e}")
 
-def main():
-    if len(sys.argv) < 2:
-        print("Not enough arguments given :(")
-        sys.exit(1)
 
-    users_file = sys.argv[1]
-    valid_users = {}
-    port = 1337
-    # There is an optional port
-    if len(sys.argv) == 3:
-        try:
-            port = int(sys.argv[2])
-        except ValueError:
-            print("Invalid port number.")
-            sys.exit(1)
+if len(sys.argv) < 2:
+    print("Not enough arguments given :(")
+    sys.exit(1)
+
+users_file = sys.argv[1]
+valid_users = {}
+port = 1337
+# There is an optional port
+if len(sys.argv) == 3:
     try:
-        with open(users_file, "r") as file:
-            for line in file:
-                if not line:
-                    continue
-                if "\t" in line:
-                    parts = line.split("\t")
-                if len(parts) != 2:
-                    continue
-                username = parts[0]
-                password = parts[1]
-                valid_users[username] = password
-    except FileNotFoundError:
-        print(f"Users file '{users_file}' not found.")
+        port = int(sys.argv[2])
+    except ValueError:
+        print("Invalid port number.")
         sys.exit(1)
-
-    # TCP listening socket creating
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('', port))
-    server_socket.listen()
-
-    inputs = [server_socket]
-    clients = {}
-
-    while True:
-        client_sockets, _, _ = select.select(inputs, [], [])
-        for sock in client_sockets:
-
-            # new client connection
-            if sock is server_socket:
-                client_socket, addr = server_socket.accept()
-                inputs.append(client_socket)
-                clients[client_socket] = {'state': 'awaiting_username'}
-                welcome_message = "Welcome! Please log in.\n"
-                send_all(client_socket, welcome_message)
+try:
+    with open(users_file, "r") as file:
+        for line in file:
+            line = line.strip()
+            if not line:
                 continue
-
-            # existing client message
-            data = sock.recv(4096).decode()
-            if not data:
-                inputs.remove(sock)
-                del clients[sock]
-                sock.close()
-                continue
-                
-            client_info = clients[sock]
-            state = client_info['state']
-            
-             # quit connection
-            if data.strip() == "quit":
-                inputs.remove(sock)
-                del clients[sock]
-                sock.close()
-
-            if state == 'awaiting_username':
-                if data.startswith("User: "):
-                    username = data[len("User: "):].strip()
-                    client_info['username'] = username
-                    client_info['state'] = 'awaiting_password'
-                else:
-                    error_message = "Failed to login\n"
-                    sock.sendall(error_message.encode())
-            
-            elif state == 'awaiting_password':
-                if data.startswith("Password: "):
-                    password = data[len("Password: "):].strip()
-                    username = client_info.get('username')
-                    if username in valid_users and valid_users[username] == password:
-                        success_message = "Hi " + username + ", good to see you\n"
-                        sock.sendall(success_message.encode())
-                        client_info['state'] = 'authenticated'
-                    else:
-                        failure_message = "Failed to login.\n"
-                        sock.sendall(failure_message.encode())
-                else:
-                    error_message = "Failed to login.\n"
-                    sock.sendall(error_message.encode())
-
-            # authenticated state, commad phase
-            elif state == 'authenticated':
-                if data.startswith("caesar: "):
-                    try:
-                        command_content = data[len("caesar: "):].strip()
-                        plaintext, shift_str = command_content.split(" ", 1)
-                        shift = int(shift_str)
-                        ciphertext = caesar(plaintext, shift)
-                        if ciphertext == "invalid input":
-                            error_message = "error: invalid input.\n"
-                            sock.sendall(error_message.encode())
-                            inputs.remove(sock)
-                            del clients[sock]
-                            sock.close()
-                            continue
-                        response = "Ciphertext: " + ciphertext + "\n"
-                        sock.sendall(response.encode())
-                    except Exception as e:
-                        error_message = "Error\n"
-                        sock.sendall(error_message.encode())
-                        inputs.remove(sock)
-                        del clients[sock]
-                        sock.close()
-                        continue
-
-                if data.startswith("lcm: "):
-                    try:
-                        command_content = data[len("lcm: "):].strip()
-                        x_str, y_str = command_content.split("   ")
-                        x = int(x_str)
-                        y = int(y_str)
-                        result = lcm(x, y)
-                        response = "LCM: " + str(result) + "\n"
-                        sock.sendall(response.encode())
-                    except Exception as e:
-                        error_message = "Error processing LCM command.\n"
-                        sock.sendall(error_message.encode())
-                        inputs.remove(sock)
-                        del clients[sock]
-                        sock.close()
-
-                if data.startswith("parentheses: "):
-                    try:
-                        command_content = data[len("parentheses: "):].strip()
-                        result = validParentheses(command_content)
-                        response = "Parentheses: " + str(result) + "\n"
-                        sock.sendall(response.encode())
-                    except Exception as e:
-                        error_message = "Error processing Parentheses command.\n"
-                        sock.sendall(error_message.encode())
-                        inputs.remove(sock)
-                        del clients[sock]   
-                        sock.close()
-
-
-            
+            # Try tab first, then spaces
+            if "\t" in line:
+                parts = line.split("\t")
             else:
+                # Split by whitespace (handles multiple spaces)
+                parts = line.split(None, 1)  # Split on any whitespace, max 1 split
+            if len(parts) == 2:
+                username = parts[0].strip()
+                password = parts[1].strip()
+                valid_users[username] = password
+except FileNotFoundError:
+    print(f"Users file '{users_file}' not found.")
+    sys.exit(1)
+
+# TCP listening socket creating
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.bind(('', port))
+server_socket.listen()
+
+inputs = [server_socket]
+clients = {}
+
+def process_message(sock, client_info, message):
+    """Process a single complete message based on client state."""
+    state = client_info['state']
+    
+    # Check for quit command (works in any state)
+    if message.strip() == "quit":
+        inputs.remove(sock)
+        del clients[sock]
+        sock.close()
+        return False
+    
+    # Handle based on state
+    if state == 'awaiting_username':
+        if message.startswith("User: "):
+            username = message[len("User: "):].strip()
+            client_info['username'] = username
+            client_info['state'] = 'awaiting_password'
+        else:
+            error_message = "Failed to login\n"
+            sock.sendall(error_message.encode())
+            inputs.remove(sock)
+            del clients[sock]
+            sock.close()
+            return False
+    
+    elif state == 'awaiting_password':
+        if message.startswith("Password: "):
+            password = message[len("Password: "):].strip()
+            username = client_info.get('username')
+            if username in valid_users and valid_users[username] == password:
+                success_message = "Hi " + username + ", good to see you\n"
+                sock.sendall(success_message.encode())
+                client_info['state'] = 'authenticated'
+            else:
+                failure_message = "Failed to login.\n"
+                sock.sendall(failure_message.encode())
+                inputs.remove(sock)
+                del clients[sock]
+                sock.close()
+                return False
+        else:
+            error_message = "Failed to login.\n"
+            sock.sendall(error_message.encode())
+            return False
+
+    # authenticated state, command phase
+    elif state == 'authenticated':
+        if message.startswith("caesar: "):
+            try:
+                command_content = message[len("caesar: "):].strip()
+                plaintext, shift_str  = command_content.split(" ", 1)
+                shift = int(shift_str)
+                ciphertext = caesar(plaintext, shift)
+                if ciphertext == "invalid input":
+                    error_message = "error: invalid input.\n"
+                    sock.sendall(error_message.encode())
+                    inputs.remove(sock)
+                    del clients[sock]
+                    sock.close()
+                    return False
+                response = "Ciphertext: " + ciphertext + "\n"
+                sock.sendall(response.encode())
+            except Exception as e:
+                error_message = "Error\n"
+                sock.sendall(error_message.encode())
+                inputs.remove(sock)
+                del clients[sock]
+                sock.close()
+                return False
+
+        elif message.startswith("lcm: "):
+            try:
+                command_content = message[len("lcm: "):].strip()
+                x_str, y_str = command_content.split(" ")
+                x = int(x_str)
+                y = int(y_str)
+                result = lcm(x, y)
+                response = "lcm: " + str(result) + "\n"
+                sock.sendall(response.encode())
+            except Exception as e:
+                error_message = "Error processing LCM command.\n"
+                sock.sendall(error_message.encode())
+                inputs.remove(sock)
+                del clients[sock]
+                sock.close()
+                return False
+
+        elif message.startswith("parentheses: "):
+            try:
+                command_content = message[len("parentheses: "):].strip()
+                result = validParentheses(command_content)
+                response = "Parentheses: " + str(result) + "\n"
+                sock.sendall(response.encode())
+            except Exception as e:
                 error_message = "Error processing Parentheses command.\n"
                 sock.sendall(error_message.encode())
                 inputs.remove(sock)
                 del clients[sock]   
                 sock.close()
+                return False
+        else:
+            error_message = "Error processing Parentheses command.\n"
+            sock.sendall(error_message.encode())
+            inputs.remove(sock)
+            del clients[sock]   
+            sock.close()
+            return False
+    
+    return True
 
+while True:
+    client_sockets, _, _ = select.select(inputs, [], [])
+    for sock in client_sockets:
 
+        # new client connection
+        if sock is server_socket:
+            client_socket, addr = server_socket.accept()
+            inputs.append(client_socket)
+            clients[client_socket] = {'state': 'awaiting_username', 'buffer': ''}
+            welcome_message = "Welcome! Please log in.\n"
+            send_all(client_socket, welcome_message)
+            continue
+
+        # existing client message
+        client_info = clients.get(sock)
+        if client_info is None:
+            continue
+            
+        # Receive data and append to buffer
+        data = sock.recv(4096).decode()
+        if not data:
+            inputs.remove(sock)
+            del clients[sock]
+            sock.close()
+            continue
         
-
-                    
-
-
-
-
+        # Add received data to buffer
+        if 'buffer' not in client_info:
+            client_info['buffer'] = ''
+        client_info['buffer'] += data
+        
+        # Process all complete messages (ending with \n)
+        while '\n' in client_info['buffer']:
+            # Split at first newline
+            parts = client_info['buffer'].split('\n', 1)
+            message = parts[0]
+            client_info['buffer'] = parts[1] if len(parts) > 1 else ''
+            
+            # Skip empty messages
+            if not message.strip():
+                continue
+            
+            # Process the complete message
+            if not process_message(sock, client_info, message):
+                break  # Connection closed, exit message processing loop

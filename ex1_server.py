@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import socket
 import sys
 import select
@@ -150,7 +151,7 @@ def process_message(sock, client_info, message):
                     del clients[sock]
                     sock.close()
                     return False
-                response = "Ciphertext: " + ciphertext + "\n"
+                response = "the ciphertext is: " + ciphertext + "\n"
                 sock.sendall(response.encode())
             except Exception as e:
                 error_message = "Error\n"
@@ -167,7 +168,7 @@ def process_message(sock, client_info, message):
                 x = int(x_str)
                 y = int(y_str)
                 result = lcm(x, y)
-                response = "lcm: " + str(result) + "\n"
+                response = "the lcm is: " + str(result) + "\n"
                 sock.sendall(response.encode())
             except Exception as e:
                 error_message = "Error processing LCM command.\n"
@@ -180,8 +181,11 @@ def process_message(sock, client_info, message):
         elif message.startswith("parentheses: "):
             try:
                 command_content = message[len("parentheses: "):].strip()
+                res = "no"
                 result = validParentheses(command_content)
-                response = "Parentheses: " + str(result) + "\n"
+                if result:
+                    res = "yes"
+                response = "the parentheses are balanced: " + res + "\n"
                 sock.sendall(response.encode())
             except Exception as e:
                 error_message = "Error processing Parentheses command.\n"

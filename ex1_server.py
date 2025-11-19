@@ -195,7 +195,7 @@ def process_message(sock, client_info, message):
                 sock.close()
                 return False
         else:
-            error_message = "Error processing Parentheses command.\n"
+            error_message = "Error processing command.\n"
             sock.sendall(error_message.encode())
             inputs.remove(sock)
             del clients[sock]   

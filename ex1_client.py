@@ -10,7 +10,7 @@ def parse_arguments():
     Defaults: hostname = "localhost", port = 1337
     If one is provided, both must be provided.
     """
-    hostname = "localhost"
+    hostname = "127.0.0.1"
     port = 1337
     
     if len(sys.argv) == 1:

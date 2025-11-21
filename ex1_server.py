@@ -85,6 +85,7 @@ except FileNotFoundError:
 
 # TCP listening socket creating
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server_socket.bind(('', port))
 server_socket.listen()
 
@@ -110,12 +111,10 @@ def process_message(sock, client_info, message):
             client_info['state'] = 'awaiting_password'
             return True
         else:
-            error_message = "Failed to login\n"
+            error_message = "Failed to login.\n"
             sock.sendall(error_message.encode())
-            inputs.remove(sock)
-            del clients[sock]
-            sock.close()
-            return False
+            client_info['state'] = 'awaiting_username'
+            return True
     
     elif state == 'awaiting_password':
         if message.startswith("Password: "):
@@ -134,7 +133,8 @@ def process_message(sock, client_info, message):
         else:
             error_message = "Failed to login.\n"
             sock.sendall(error_message.encode())
-            return False
+            client_info['state'] = 'awaiting_username'
+            return True
 
     # authenticated state, command phase
     elif state == 'authenticated':

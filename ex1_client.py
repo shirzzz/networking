@@ -8,7 +8,7 @@ def parse_arguments():
     """
     Parse command-line arguments for hostname and port.
     Defaults: hostname = "localhost", port = 1337
-    If one is provided, both must be provided.
+    You can provide hostname without port, but cannot provide port without hostname.
     """
     hostname = "localhost"
     port = 1337
@@ -17,9 +17,17 @@ def parse_arguments():
         # No arguments - use defaults
         pass
     elif len(sys.argv) == 2:
-        # Only one argument provided - invalid
-        print("Error: If hostname is provided, port must also be provided.")
-        sys.exit(1)
+        # One argument provided - could be hostname or port
+        arg = sys.argv[1]
+        # Check if it's a number (port)
+        try:
+            port_num = int(arg)
+            # If it's a number, it's a port without hostname - ERROR
+            print("Error: Cannot provide port without hostname.")
+            sys.exit(1)
+        except ValueError:
+            # Not a number, so it's a hostname - use default port
+            hostname = arg
     elif len(sys.argv) == 3:
         # Both hostname and port provided
         hostname = sys.argv[1]
@@ -101,9 +109,10 @@ def main():
     
     # Create TCP socket and connect
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.settimeout(5)  # 5 second timeout for connection
     try:
         client_socket.connect((hostname, port))
-    except OSError as e:
+    except (OSError, socket.timeout) as e:
         print(f"Error connecting to server: {e}")
         client_socket.close()
         sys.exit(1)

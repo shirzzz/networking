@@ -108,6 +108,7 @@ def process_message(sock, client_info, message):
             username = message[len("User: "):].strip()
             client_info['username'] = username
             client_info['state'] = 'awaiting_password'
+            return True
         else:
             error_message = "Failed to login\n"
             sock.sendall(error_message.encode())
@@ -127,10 +128,9 @@ def process_message(sock, client_info, message):
             else:
                 failure_message = "Failed to login.\n"
                 sock.sendall(failure_message.encode())
-                inputs.remove(sock)
-                del clients[sock]
-                sock.close()
-                return False
+                client_info['state'] = 'awaiting_username'
+                return True
+
         else:
             error_message = "Failed to login.\n"
             sock.sendall(error_message.encode())
@@ -147,12 +147,9 @@ def process_message(sock, client_info, message):
                 if ciphertext == "invalid input":
                     error_message = "error: invalid input.\n"
                     sock.sendall(error_message.encode())
-                    inputs.remove(sock)
-                    del clients[sock]
-                    sock.close()
-                    return False
-                response = "the ciphertext is: " + ciphertext + "\n"
-                sock.sendall(response.encode())
+                else:
+                    response = "the ciphertext is: " + ciphertext + "\n"
+                    sock.sendall(response.encode())
             except Exception as e:
                 error_message = "Error\n"
                 sock.sendall(error_message.encode())

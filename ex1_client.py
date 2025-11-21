@@ -10,7 +10,7 @@ def parse_arguments():
     Defaults: hostname = "localhost", port = 1337
     If one is provided, both must be provided.
     """
-    hostname = "127.0.0.1"
+    hostname = "localhost"
     port = 1337
     
     if len(sys.argv) == 1:
@@ -70,29 +70,28 @@ def authenticate(sock):
         return False
     
     print(welcome.rstrip())
+    while True:
+        # Prompt for username
+        username = input("User: ").strip()
+        
+        # Prompt for password
+        password = input("Password: ").strip()
+        
+        # Send credentials
+        send_message(sock, f"User: {username}\n")
+        send_message(sock, f"Password: {password}\n")
+        
+        # Receive login response
+        response = receive_message(sock)
+        if response is None:
+            return False
+        
+        print(response.rstrip())
+        
+        # Check if login was successful
+        if not "Failed to login." in response:
+            return True
     
-    # Prompt for username
-    username = input("User: ").strip()
-    
-    # Prompt for password
-    password = input("Password: ").strip()
-    
-    # Send credentials
-    send_message(sock, f"User: {username}\n")
-    send_message(sock, f"Password: {password}\n")
-    
-    # Receive login response
-    response = receive_message(sock)
-    if response is None:
-        return False
-    
-    print(response.rstrip())
-    
-    # Check if login was successful
-    if "Failed to login" in response:
-        return False
-    
-    return True
 
 
 def main():
